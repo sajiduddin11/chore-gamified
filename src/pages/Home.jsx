@@ -1,17 +1,17 @@
-import { useState, useEffect } from 'react'  // hooks for managing state and side effects
-import { useNavigate } from 'react-router-dom'  // navigation between pages
+import { useState, useEffect, useRef } from 'react'  // useRef tracks previous streak value
+import { useNavigate } from 'react-router-dom'
 import '../App.css'
 
-// returns today's date as a string e.g. "2026-04-15"
 function getTodayDate() {
     return new Date().toISOString().split('T')[0]
 }
 
+// confetti colours matching the RPG gold/purple theme
+const CONFETTI_COLOURS = ['#f0c040', '#c9a84c', '#9b59b6', '#7d3c98', '#ffffff']
+
 function Home() {
     const navigate = useNavigate()
     const [currentTime, setCurrentTime] = useState(new Date())
-
-    // initialise chores from localStorage, fall back to defaults if nothing saved
     const [chores, setChores] = useState(() => {
         const saved = localStorage.getItem('chores')
         return saved ? JSON.parse(saved) : [
@@ -20,51 +20,67 @@ function Home() {
             { id: 3, text: 'Take out bins', done: false },
         ]
     })
-
     const [newChore, setNewChore] = useState('')
-
-    // initialise gamification state from localStorage so progress persists on refresh
     const [points, setPoints] = useState(() => parseInt(localStorage.getItem('points') || '0'))
     const [streak, setStreak] = useState(() => parseInt(localStorage.getItem('streak') || '0'))
     const [badges, setBadges] = useState(() => JSON.parse(localStorage.getItem('badges') || '[]'))
+    const [popup, setPopup] = useState(null)  // floating +10/-10 popup
+    const [confetti, setConfetti] = useState([])  // array of confetti pieces
+    const [removingId, setRemovingId] = useState(null)  // id of chore being deleted
+    const [streakShake, setStreakShake] = useState(false)  // triggers streak shake
+    const prevStreakRef = useRef(streak)  // tracks previous streak to detect changes
 
-    // stores the position and text of the floating points popup
-    const [popup, setPopup] = useState(null)
+    // badge thresholds used for both checking and progress bar
+    const allBadges = [
+        { id: 1, label: '🌟 First Steps', requirement: 10 },
+        { id: 2, label: '🔥 On Fire', requirement: 50 },
+        { id: 3, label: '💪 Chore Champion', requirement: 100 },
+    ]
 
-    // compares current points against badge thresholds and unlocks any newly earned badges
+    // works out progress towards the next badge
+    function getProgressToNextBadge(currentPoints) {
+        const next = allBadges.find(b => currentPoints < b.requirement)
+        if (!next) return { label: '🏆 Max level!', percent: 100, current: currentPoints, target: currentPoints }
+        const prev = allBadges.filter(b => b.requirement <= currentPoints).pop()
+        const from = prev ? prev.requirement : 0
+        const percent = Math.round(((currentPoints - from) / (next.requirement - from)) * 100)
+        return { label: next.label, percent, current: currentPoints - from, target: next.requirement - from }
+    }
+
     function checkBadges(currentPoints) {
-        const allBadges = [
-            { id: 1, label: '🌟 First Steps', requirement: 10, description: 'Earn 10 points' },
-            { id: 2, label: '🔥 On Fire', requirement: 50, description: 'Earn 50 points' },
-            { id: 3, label: '💪 Chore Champion', requirement: 100, description: 'Earn 100 points' },
-        ]
         const earned = allBadges.filter(b => currentPoints >= b.requirement)
         setBadges(earned)
         localStorage.setItem('badges', JSON.stringify(earned))
     }
 
-    // saves the day's progress to history, updates streak, then resets chores for the new day
+    // launches confetti pieces at random positions across the screen
+    function launchConfetti() {
+        const pieces = Array.from({ length: 40 }, (_, i) => ({
+            id: i,
+            x: Math.random() * 100,  // random horizontal position as percentage
+            colour: CONFETTI_COLOURS[Math.floor(Math.random() * CONFETTI_COLOURS.length)],
+            delay: Math.random() * 0.8,  // staggered fall timing
+            size: Math.random() * 8 + 6,  // random size between 6-14px
+        }))
+        setConfetti(pieces)
+        // clear confetti after animation finishes
+        setTimeout(() => setConfetti([]), 2500)
+    }
+
     function resetForNewDay(dateToSave) {
         const done = chores.filter(c => c.done).length
         const total = chores.length
-
-        // append today's entry to the top of the history array
         const history = JSON.parse(localStorage.getItem('history') || '[]')
         history.unshift({ date: dateToSave, done, total, chores, points })
         localStorage.setItem('history', JSON.stringify(history))
-
-        // increment streak if at least one chore was completed, otherwise reset it
         const newStreak = done > 0 ? streak + 1 : 0
         setStreak(newStreak)
         localStorage.setItem('streak', newStreak.toString())
-
-        // reset all chores to incomplete for the new day
         const resetChores = chores.map(c => ({ ...c, done: false }))
         setChores(resetChores)
         localStorage.setItem('chores', JSON.stringify(resetChores))
     }
 
-    // on mount, check if the app was last opened on a previous day and trigger a reset if so
     useEffect(() => {
         const lastOpenedDate = localStorage.getItem('lastOpenedDate')
         const today = getTodayDate()
@@ -74,7 +90,6 @@ function Home() {
         localStorage.setItem('lastOpenedDate', today)
     }, [])
 
-    // runs every second to keep the clock updated and trigger a reset at exactly midnight
     useEffect(() => {
         const interval = setInterval(() => {
             const now = new Date()
@@ -86,12 +101,20 @@ function Home() {
                 localStorage.setItem('lastOpenedDate', getTodayDate())
             }
         }, 1000)
-        return () => clearInterval(interval)  // cleanup interval on unmount
+        return () => clearInterval(interval)
     }, [chores])
 
-    // persist chores and points to localStorage whenever they change
     useEffect(() => { localStorage.setItem('chores', JSON.stringify(chores)) }, [chores])
     useEffect(() => { localStorage.setItem('points', points.toString()) }, [points])
+
+    // shake the streak counter whenever the streak increases
+    useEffect(() => {
+        if (streak > prevStreakRef.current) {
+            setStreakShake(true)
+            setTimeout(() => setStreakShake(false), 400)
+        }
+        prevStreakRef.current = streak
+    }, [streak])
 
     function addChore() {
         if (newChore.trim() === '') return
@@ -99,53 +122,66 @@ function Home() {
         setNewChore('')
     }
 
-    // toggling a chore awards or deducts 10 points, shows a floating popup and re-evaluates badges
     function toggleDone(id, event) {
         const chore = chores.find(c => c.id === id)
         const newPoints = chore.done ? points - 10 : points + 10
         setPoints(newPoints)
         checkBadges(newPoints)
-        setChores(chores.map(c => c.id === id ? { ...c, done: !c.done } : c))
+        const updatedChores = chores.map(c => c.id === id ? { ...c, done: !c.done } : c)
+        setChores(updatedChores)
 
-        // get the position of the clicked button and show popup there
+        // show floating popup at button position
         const rect = event.target.getBoundingClientRect()
-        setPopup({
-            x: rect.left,
-            y: rect.top,
-            text: chore.done ? '-10' : '+10'
-        })
-        // remove the popup after 1 second
+        setPopup({ x: rect.left, y: rect.top, text: chore.done ? '-10' : '+10' })
         setTimeout(() => setPopup(null), 1000)
+
+        // launch confetti if all chores are now done
+        const allDone = updatedChores.every(c => c.done)
+        if (allDone && !chore.done) launchConfetti()
     }
 
+    // plays slide out animation then removes the chore after it finishes
     function deleteChore(id) {
-        setChores(chores.filter(c => c.id !== id))
+        setRemovingId(id)
+        setTimeout(() => {
+            setChores(chores.filter(c => c.id !== id))
+            setRemovingId(null)
+        }, 300)  // matches the slideOut animation duration
     }
+
+    const progress = getProgressToNextBadge(points)
 
     return (
         <div className="app">
             <h1>🎮 My Chores</h1>
 
-            {/* live clock, updates every second via the interval above */}
             <p className="datetime">
                 {currentTime.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                 {' — '}
                 {currentTime.toLocaleTimeString('en-GB')}
             </p>
 
-            {/* gamification stats separated by pipes for readability */}
+            {/* stats bar with shake effect on streak */}
             <div className="stats">
                 <span>⭐ {points} points</span>
                 <span> | </span>
-                <span>🔥 {streak} day streak</span>
+                <span className={streakShake ? 'streak-shake' : ''}>🔥 {streak} day streak</span>
                 <span> | </span>
                 <span>{chores.filter(c => c.done).length} of {chores.length} done</span>
                 <span> | </span>
-                {/* level updates automatically based on total points accumulated */}
                 <span>{points >= 100 ? '🏆 Chore Master' : points >= 50 ? '⚡ Rising Star' : '🌱 Beginner'}</span>
             </div>
 
-            {/* badge section only renders if at least one badge has been earned */}
+            {/* progress bar showing how close to the next badge */}
+            <div className="progress-bar-container">
+                <p className="progress-bar-label">
+                    Next badge: {progress.label} — {progress.current}/{progress.target} pts
+                </p>
+                <div className="progress-bar-track">
+                    <div className="progress-bar-fill" style={{ width: `${progress.percent}%` }} />
+                </div>
+            </div>
+
             {badges.length > 0 && (
                 <div className="badges">
                     <h3>🏅 Badges</h3>
@@ -171,9 +207,8 @@ function Home() {
                     <p>No chores, you're all done! 🎉</p>
                 ) : (
                     chores.map(chore => (
-                        <li key={chore.id} className={chore.done ? 'done' : ''}>
+                        <li key={chore.id} className={`${chore.done ? 'done' : ''} ${removingId === chore.id ? 'chore-removing' : ''}`}>
                             <span>{chore.text}</span>
-                            {/* passes the click event so we know where to show the popup */}
                             <button onClick={(e) => toggleDone(chore.id, e)}>
                                 {chore.done ? 'Undo' : 'Done ⭐'}
                             </button>
@@ -183,15 +218,28 @@ function Home() {
                 )}
             </ul>
 
-            {/* floating +10 or -10 popup that appears where the button was clicked */}
+            {/* floating points popup */}
             {popup && (
-                <div
-                    className="points-popup"
-                    style={{ left: popup.x, top: popup.y }}
-                >
+                <div className="points-popup" style={{ left: popup.x, top: popup.y }}>
                     {popup.text}
                 </div>
             )}
+
+            {/* confetti pieces rendered at random positions */}
+            {confetti.map(piece => (
+                <div
+                    key={piece.id}
+                    className="confetti-piece"
+                    style={{
+                        left: `${piece.x}%`,
+                        top: '-10px',
+                        backgroundColor: piece.colour,
+                        width: piece.size,
+                        height: piece.size,
+                        animationDelay: `${piece.delay}s`
+                    }}
+                />
+            ))}
         </div>
     )
 }

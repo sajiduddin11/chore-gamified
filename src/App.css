@@ -97,7 +97,7 @@ h3 {
 }
 
 /* ---- Badge Unlock Glow Animation ---- */
-/* pulses gold when a new badge is earned */
+/* pulses gold 3 times when a new badge is earned */
 @keyframes badgeGlow {
   0% { box-shadow: 0 0 5px rgba(240, 192, 64, 0.3); }
   50% { box-shadow: 0 0 20px rgba(240, 192, 64, 0.8); }
@@ -105,7 +105,7 @@ h3 {
 }
 
 .badge-new {
-  animation: badgeGlow 1.5s ease-in-out 3; /* glows 3 times when unlocked */
+  animation: badgeGlow 1.5s ease-in-out 3;
 }
 
 /* ---- Buttons ---- */
@@ -125,10 +125,10 @@ button {
 
 button:hover {
   background-color: #3a2a55;
-  box-shadow: 0 0 8px rgba(240, 192, 64, 0.3); /* gold glow on hover */
+  box-shadow: 0 0 8px rgba(240, 192, 64, 0.3);
 }
 
-/* scales down when clicked so it feels like a real button press */
+/* scales down slightly when clicked to feel like a real button press */
 button:active {
   transform: scale(0.95);
 }
@@ -157,7 +157,7 @@ button:active {
   color: #5a4a6a;
 }
 
-/* gold border when the input is focused */
+/* gold border appears when input is focused */
 .add-chore input:focus {
   border-color: #f0c040;
 }
@@ -171,7 +171,7 @@ ul {
   gap: 8px;
 }
 
-/* each chore is a dark purple card with a hover lift effect */
+/* each chore is a dark purple card with hover lift effect */
 li {
   background-color: #1a1228;
   border: 1px solid #4a3060;
@@ -210,8 +210,20 @@ li.done span {
   color: #8a7a5a;
 }
 
+/* ---- Chore Slide Out on Delete ---- */
+/* slides right and fades out when a chore is removed */
+@keyframes slideOut {
+  0% { opacity: 1; transform: translateX(0); max-height: 100px; }
+  100% { opacity: 0; transform: translateX(100%); max-height: 0; padding: 0; }
+}
+
+.chore-removing {
+  animation: slideOut 0.3s ease-out forwards;
+  overflow: hidden;
+}
+
 /* ---- Points Popup Animation ---- */
-/* the +10 or -10 that floats upward when marking a chore done */
+/* +10 or -10 floats upward when marking a chore done or undone */
 @keyframes floatUp {
   0% { opacity: 1; transform: translateY(0); }
   100% { opacity: 0; transform: translateY(-50px); }
@@ -226,6 +238,69 @@ li.done span {
   pointer-events: none; /* doesnt block any clicks underneath */
   animation: floatUp 1s ease-out forwards;
   z-index: 999;
+}
+
+/* ---- Confetti Particle ---- */
+/* each piece falls from top of screen and rotates */
+@keyframes confettiFall {
+  0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+
+.confetti-piece {
+  position: fixed;
+  border-radius: 2px;
+  pointer-events: none; /* doesnt block any clicks */
+  animation: confettiFall 2s ease-in forwards;
+  z-index: 1000;
+}
+
+/* ---- Progress Bar to Next Badge ---- */
+/* sits below stats bar, shows progress towards next badge */
+.progress-bar-container {
+  background-color: #1a1228;
+  border: 1px solid #4a3060;
+  border-radius: 10px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+}
+
+.progress-bar-label {
+  font-size: 12px;
+  color: #a09070;
+  margin-bottom: 6px;
+}
+
+/* the dark track the bar fills across */
+.progress-bar-track {
+  background-color: #0d0a1a;
+  border-radius: 20px;
+  height: 10px;
+  overflow: hidden;
+  border: 1px solid #4a3060;
+}
+
+/* the gold filled portion - width is set dynamically in JSX */
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #c9a84c, #f0c040);
+  border-radius: 20px;
+  transition: width 0.5s ease; /* smooth fill animation when points change */
+}
+
+/* ---- Streak Shake Animation ---- */
+/* shakes the streak counter when it increases */
+@keyframes shake {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  50% { transform: translateX(4px); }
+  75% { transform: translateX(-4px); }
+  100% { transform: translateX(0); }
+}
+
+.streak-shake {
+  display: inline-block;
+  animation: shake 0.4s ease;
 }
 
 /* ---- History Page ---- */
