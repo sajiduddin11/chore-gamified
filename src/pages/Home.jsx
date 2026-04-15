@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'  // useRef tracks previous streak value
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import '../App.css'
 
@@ -6,7 +6,6 @@ function getTodayDate() {
     return new Date().toISOString().split('T')[0]
 }
 
-// confetti colours matching the RPG gold/purple theme
 const CONFETTI_COLOURS = ['#f0c040', '#c9a84c', '#9b59b6', '#7d3c98', '#ffffff']
 
 function Home() {
@@ -21,30 +20,32 @@ function Home() {
         ]
     })
     const [newChore, setNewChore] = useState('')
+
+    // total points accumulate forever across all days
     const [points, setPoints] = useState(() => parseInt(localStorage.getItem('points') || '0'))
+
+    // daily points reset each day and drive the progress bar
+    const [dailyPoints, setDailyPoints] = useState(() => parseInt(localStorage.getItem('dailyPoints') || '0'))
+
     const [streak, setStreak] = useState(() => parseInt(localStorage.getItem('streak') || '0'))
     const [badges, setBadges] = useState(() => JSON.parse(localStorage.getItem('badges') || '[]'))
-    const [popup, setPopup] = useState(null)  // floating +10/-10 popup
-    const [confetti, setConfetti] = useState([])  // array of confetti pieces
-    const [removingId, setRemovingId] = useState(null)  // id of chore being deleted
-    const [streakShake, setStreakShake] = useState(false)  // triggers streak shake
-    const prevStreakRef = useRef(streak)  // tracks previous streak to detect changes
+    const [popup, setPopup] = useState(null)
+    const [confetti, setConfetti] = useState([])
+    const [removingId, setRemovingId] = useState(null)
+    const [streakShake, setStreakShake] = useState(false)
+    const prevStreakRef = useRef(streak)
 
-    // badge thresholds used for both checking and progress bar
     const allBadges = [
         { id: 1, label: '🌟 First Steps', requirement: 10 },
         { id: 2, label: '🔥 On Fire', requirement: 50 },
         { id: 3, label: '💪 Chore Champion', requirement: 100 },
     ]
 
-    // works out progress towards the next badge
-    function getProgressToNextBadge(currentPoints) {
-        const next = allBadges.find(b => currentPoints < b.requirement)
-        if (!next) return { label: '🏆 Max level!', percent: 100, current: currentPoints, target: currentPoints }
-        const prev = allBadges.filter(b => b.requirement <= currentPoints).pop()
-        const from = prev ? prev.requirement : 0
-        const percent = Math.round(((currentPoints - from) / (next.requirement - from)) * 100)
-        return { label: next.label, percent, current: currentPoints - from, target: next.requirement - from }
+    // progress bar is based on daily points, resets each day
+    function getProgressToNextBadge(currentDailyPoints) {
+        const maxDaily = 100  // max daily points for a full bar
+        const percent = Math.min(Math.round((currentDailyPoints / maxDaily) * 100), 100)
+        return { percent, current: currentDailyPoints, target: maxDaily }
     }
 
     function checkBadges(currentPoints) {
@@ -53,17 +54,15 @@ function Home() {
         localStorage.setItem('badges', JSON.stringify(earned))
     }
 
-    // launches confetti pieces at random positions across the screen
     function launchConfetti() {
         const pieces = Array.from({ length: 40 }, (_, i) => ({
             id: i,
-            x: Math.random() * 100,  // random horizontal position as percentage
+            x: Math.random() * 100,
             colour: CONFETTI_COLOURS[Math.floor(Math.random() * CONFETTI_COLOURS.length)],
-            delay: Math.random() * 0.8,  // staggered fall timing
-            size: Math.random() * 8 + 6,  // random size between 6-14px
+            delay: Math.random() * 0.8,
+            size: Math.random() * 8 + 6,
         }))
         setConfetti(pieces)
-        // clear confetti after animation finishes
         setTimeout(() => setConfetti([]), 2500)
     }
 
@@ -79,6 +78,10 @@ function Home() {
         const resetChores = chores.map(c => ({ ...c, done: false }))
         setChores(resetChores)
         localStorage.setItem('chores', JSON.stringify(resetChores))
+
+        // reset daily points to zero for the new day
+        setDailyPoints(0)
+        localStorage.setItem('dailyPoints', '0')
     }
 
     useEffect(() => {
@@ -106,8 +109,8 @@ function Home() {
 
     useEffect(() => { localStorage.setItem('chores', JSON.stringify(chores)) }, [chores])
     useEffect(() => { localStorage.setItem('points', points.toString()) }, [points])
+    useEffect(() => { localStorage.setItem('dailyPoints', dailyPoints.toString()) }, [dailyPoints])
 
-    // shake the streak counter whenever the streak increases
     useEffect(() => {
         if (streak > prevStreakRef.current) {
             setStreakShake(true)
@@ -124,32 +127,44 @@ function Home() {
 
     function toggleDone(id, event) {
         const chore = chores.find(c => c.id === id)
+
+        // update total points
         const newPoints = chore.done ? points - 10 : points + 10
         setPoints(newPoints)
         checkBadges(newPoints)
+
+        // update daily points separately
+        const newDailyPoints = chore.done ? dailyPoints - 10 : dailyPoints + 10
+        setDailyPoints(Math.max(0, newDailyPoints))  // never goes below 0
+
         const updatedChores = chores.map(c => c.id === id ? { ...c, done: !c.done } : c)
         setChores(updatedChores)
 
-        // show floating popup at button position
         const rect = event.target.getBoundingClientRect()
         setPopup({ x: rect.left, y: rect.top, text: chore.done ? '-10' : '+10' })
         setTimeout(() => setPopup(null), 1000)
 
-        // launch confetti if all chores are now done
         const allDone = updatedChores.every(c => c.done)
         if (allDone && !chore.done) launchConfetti()
     }
 
-    // plays slide out animation then removes the chore after it finishes
     function deleteChore(id) {
+        const chore = chores.find(c => c.id === id)
+        if (chore.done) {
+            // deduct from both total and daily points
+            const newPoints = points - 10
+            setPoints(newPoints)
+            checkBadges(newPoints)
+            setDailyPoints(prev => Math.max(0, prev - 10))
+        }
         setRemovingId(id)
         setTimeout(() => {
             setChores(chores.filter(c => c.id !== id))
             setRemovingId(null)
-        }, 300)  // matches the slideOut animation duration
+        }, 300)
     }
 
-    const progress = getProgressToNextBadge(points)
+    const progress = getProgressToNextBadge(dailyPoints)
 
     return (
         <div className="app">
@@ -161,7 +176,7 @@ function Home() {
                 {currentTime.toLocaleTimeString('en-GB')}
             </p>
 
-            {/* stats bar with shake effect on streak */}
+            {/* stats bar - total points and streak shown here */}
             <div className="stats">
                 <span>⭐ {points} points</span>
                 <span> | </span>
@@ -172,10 +187,10 @@ function Home() {
                 <span>{points >= 100 ? '🏆 Chore Master' : points >= 50 ? '⚡ Rising Star' : '🌱 Beginner'}</span>
             </div>
 
-            {/* progress bar showing how close to the next badge */}
+            {/* daily progress bar - resets to zero each new day */}
             <div className="progress-bar-container">
                 <p className="progress-bar-label">
-                    Next badge: {progress.label} — {progress.current}/{progress.target} pts
+                    Today's progress — {progress.current}/{progress.target} pts
                 </p>
                 <div className="progress-bar-track">
                     <div className="progress-bar-fill" style={{ width: `${progress.percent}%` }} />
@@ -218,14 +233,12 @@ function Home() {
                 )}
             </ul>
 
-            {/* floating points popup */}
             {popup && (
                 <div className="points-popup" style={{ left: popup.x, top: popup.y }}>
                     {popup.text}
                 </div>
             )}
 
-            {/* confetti pieces rendered at random positions */}
             {confetti.map(piece => (
                 <div
                     key={piece.id}
