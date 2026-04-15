@@ -28,6 +28,9 @@ function Home() {
     const [streak, setStreak] = useState(() => parseInt(localStorage.getItem('streak') || '0'))
     const [badges, setBadges] = useState(() => JSON.parse(localStorage.getItem('badges') || '[]'))
 
+    // stores the position and text of the floating points popup
+    const [popup, setPopup] = useState(null)
+
     // compares current points against badge thresholds and unlocks any newly earned badges
     function checkBadges(currentPoints) {
         const allBadges = [
@@ -96,13 +99,23 @@ function Home() {
         setNewChore('')
     }
 
-    // toggling a chore awards or deducts 10 points and re-evaluates badge eligibility
-    function toggleDone(id) {
+    // toggling a chore awards or deducts 10 points, shows a floating popup and re-evaluates badges
+    function toggleDone(id, event) {
         const chore = chores.find(c => c.id === id)
         const newPoints = chore.done ? points - 10 : points + 10
         setPoints(newPoints)
         checkBadges(newPoints)
         setChores(chores.map(c => c.id === id ? { ...c, done: !c.done } : c))
+
+        // get the position of the clicked button and show popup there
+        const rect = event.target.getBoundingClientRect()
+        setPopup({
+            x: rect.left,
+            y: rect.top,
+            text: chore.done ? '-10' : '+10'
+        })
+        // remove the popup after 1 second
+        setTimeout(() => setPopup(null), 1000)
     }
 
     function deleteChore(id) {
@@ -128,10 +141,8 @@ function Home() {
                 <span> | </span>
                 <span>{chores.filter(c => c.done).length} of {chores.length} done</span>
                 <span> | </span>
-                {/* level based on total points earned */}
-                <span>
-        {points >= 100 ? '🏆 Chore Master' : points >= 50 ? '⚡ Rising Star' : '🌱 Beginner'}
-    </span>
+                {/* level updates automatically based on total points accumulated */}
+                <span>{points >= 100 ? '🏆 Chore Master' : points >= 50 ? '⚡ Rising Star' : '🌱 Beginner'}</span>
             </div>
 
             {/* badge section only renders if at least one badge has been earned */}
@@ -162,7 +173,8 @@ function Home() {
                     chores.map(chore => (
                         <li key={chore.id} className={chore.done ? 'done' : ''}>
                             <span>{chore.text}</span>
-                            <button onClick={() => toggleDone(chore.id)}>
+                            {/* passes the click event so we know where to show the popup */}
+                            <button onClick={(e) => toggleDone(chore.id, e)}>
                                 {chore.done ? 'Undo' : 'Done ⭐'}
                             </button>
                             <button onClick={() => deleteChore(chore.id)}>✕</button>
@@ -170,6 +182,16 @@ function Home() {
                     ))
                 )}
             </ul>
+
+            {/* floating +10 or -10 popup that appears where the button was clicked */}
+            {popup && (
+                <div
+                    className="points-popup"
+                    style={{ left: popup.x, top: popup.y }}
+                >
+                    {popup.text}
+                </div>
+            )}
         </div>
     )
 }
