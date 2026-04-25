@@ -168,11 +168,11 @@ function Home() {
 
     return (
         <div className="app">
-            <h1>🎮 My Chores</h1>
+            <h1>My Chores</h1>
 
             <p className="datetime">
                 {currentTime.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                {' — '}
+                {' - '}
                 {currentTime.toLocaleTimeString('en-GB')}
             </p>
 
