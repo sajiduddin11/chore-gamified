@@ -1,16 +1,19 @@
+import { useState } from 'react'  // useState lets us track the history list as state
 import { useNavigate } from 'react-router-dom'  // lets us navigate between pages
 import '../App.css'  // our styling file
 
 function History() {
-    // loads all saved history from localStorage - if nothing saved yet, uses empty array
-    const history = JSON.parse(localStorage.getItem('history') || '[]')
+    // load history from localStorage into state so the UI updates when it changes
+    const [history, setHistory] = useState(
+        JSON.parse(localStorage.getItem('history') || '[]')
+    )
 
     const navigate = useNavigate()  // used to go back to the main chore page
 
-    // removes all history from localStorage and refreshes the page
+    // removes all history from localStorage and updates the UI instantly
     function clearHistory() {
         localStorage.removeItem('history')  // deletes the history key from browser storage
-        window.location.reload()  // refreshes the page so it shows the empty state message
+        setHistory([])  // clears the state so UI updates without a page reload
     }
 
     // everything below is the UI - what shows up on screen
